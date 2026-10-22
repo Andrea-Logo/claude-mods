@@ -64,6 +64,8 @@ declare module 'claude-code' {
     arena: {
       bout: Bout | null
       tick: number
+      /** Agent ids and names of recent lanes, whose completion notices arena keeps out of the main conversation. */
+      quiet: string[]
     }
   }
 }

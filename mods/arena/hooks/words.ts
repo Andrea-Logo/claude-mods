@@ -32,6 +32,7 @@ export type Words = {
   dirty: string
   conflict: (detail: string) => string
   close: string
+  quieted: string
 }
 
 const EN: Words = {
@@ -65,6 +66,7 @@ const EN: Words = {
   dirty: 'Not merged: the repository has uncommitted changes. Commit or stash them, then pick again.',
   conflict: detail => `Not merged: git could not merge the change cleanly${detail ? ` (${detail})` : ''}. The merge was undone; nothing changed.`,
   close: 'Close',
+  quieted: 'arena: a variant finished; its result is in the Arena pane.',
 }
 
 const IT: Words = {
@@ -98,6 +100,7 @@ const IT: Words = {
   dirty: 'Non unita: nel repository ci sono modifiche non salvate (commit). Salvale o mettile da parte, poi scegli di nuovo.',
   conflict: detail => `Non unita: git non è riuscito a unire la modifica senza conflitti${detail ? ` (${detail})` : ''}. L'unione è stata annullata; non è cambiato niente.`,
   close: 'Chiudi',
+  quieted: 'arena: una variante ha finito; il risultato è nel pannello Arena.',
 }
 
 export function words(lang: Lang): Words {
