@@ -61,6 +61,7 @@ function engine(on: On, isRepo = true, isDirty = false): World {
     }
   })
   on('turn.complete', (_, e) => ({ text: e.answer }))
+  on('prompt.submit', (_, e) => ({ text: e.text }))
   on('model.complete', () => ({
     value: {
       isAnswered: true,
@@ -106,6 +107,8 @@ test('two variants start in their own worktrees and are followed live', { option
     expect(await ui.find({ type: 'Text', text: /1 file changed, 5 insertions/ })).toBeDefined()
     // 1000 in x $0.10 + 500 out x $0.50, per million: $0.00035.
     expect(await ui.find({ type: 'Text', text: /1\.5k token ≈ \$0\.000/ })).toBeDefined()
+    // Each lane has its gladiator: an animated SVG on desktop, cells in a terminal.
+    expect(await ui.find({ type: surface === 'desktop' ? 'Svg' : 'Raster' })).toBeDefined()
     await ui.unmount()
   }
 })
@@ -168,4 +171,31 @@ test('with uncommitted changes nothing is merged', { options: { language: 'it' }
   expect(world.git.some(a => a[1] === 'worktree' && a[2] === 'remove')).toBe(false)
   expect(await ui.find({ type: 'Text', text: /modifiche non salvate/ })).toBeDefined()
   await ui.unmount()
+})
+
+test("a lane's completion notice stays out of the main conversation", async ($, on) => {
+  const clock = mock.clock(on, { now: 5000 })
+  engine(on)
+  await $.session.start({ cwd: '/repo', surface: 'desktop', isInteractive: true })
+  await $.command.run({ ...TYPED, command: 'arena', args: 'reverse a string' })
+  await clock.advance(1000)
+
+  const lane = await $.prompt.submit({
+    text: '<task-notification><task-id>a1</task-id><status>completed</status></task-notification>',
+    wait: false,
+    isMeta: true,
+    origin: { kind: 'task-notification' },
+  })
+  expect(JSON.stringify(lane)).toContain('drop')
+
+  const other = await $.prompt.submit({
+    text: '<task-notification><task-id>zz9</task-id><status>completed</status></task-notification>',
+    wait: false,
+    isMeta: true,
+    origin: { kind: 'task-notification' },
+  })
+  expect(JSON.stringify(other)).not.toContain('drop')
+
+  const typed = await $.prompt.submit({ text: 'what did a1 do?', wait: false, origin: { kind: 'composer' } })
+  expect(JSON.stringify(typed)).not.toContain('drop')
 })

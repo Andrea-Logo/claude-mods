@@ -5,6 +5,8 @@ import type { Bout, Judge, Lane, LaneStatus, Tokens } from '../types'
 import { commitLane, diffOf, git, ignoreArenaFolder, mergeLane, removeLane } from './git'
 import { SYSTEM, judgePrompt, readVerdict } from './judge'
 import { costOf, modelName } from './pricing'
+import { SIZE, spriteCells, spriteSvg } from './sprites'
+import type { Costume, Mood } from './sprites'
 import { words } from './words'
 import type { Words } from './words'
 import type { Lang } from './words'
@@ -16,6 +18,38 @@ const ENDED: readonly LaneStatus[] = ['done', 'failed']
 
 const bout = atom({ plugin: 'arena', key: 'bout' } as const, null)
 const tick = atom({ plugin: 'arena', key: 'tick' } as const, 0)
+const quiet = atom({ plugin: 'arena', key: 'quiet' } as const, [])
+
+/** How many recent lanes' notices stay quiet. */
+const QUIET_KEEP = 20
+
+/** Remembers a lane's agent, so its completion notice is kept out of the main conversation. */
+async function hush($: EngineInterface, keys: readonly string[]): Promise<void> {
+  try {
+    await update($, quiet, list => [...list.filter(k => !keys.includes(k)), ...keys].slice(-QUIET_KEEP))
+  } catch {
+    // At worst the notice reaches the main conversation, as without arena.
+  }
+}
+
+function costumeOf(b: Bout, lane: Lane): Costume {
+  if (b.outcome?.isMerged === true && b.outcome.index === lane.index) return 'champion'
+  return lane.index % 2 === 1 ? 'red' : 'blue'
+}
+
+function moodOf(b: Bout, lane: Lane): Mood {
+  switch (lane.status) {
+    case 'starting':
+      return 'pending'
+    case 'running':
+      return 'active'
+    case 'failed':
+      return 'failed'
+    default:
+      if (b.outcome?.isMerged === true) return b.outcome.index === lane.index ? 'active' : 'done'
+      return b.judge?.status === 'thinking' ? 'waiting' : 'resting'
+  }
+}
 
 function short(text: string, max: number): string {
   const line = (text.split('\n')[0] ?? '').trim()
@@ -146,6 +180,7 @@ async function startBout($: EngineInterface, lang: Lang, task: string, repo?: st
       }
       // Without an id yet, the lane is found again by its agent's name (see pulse).
       const agentId = spawned.agentId
+      await hush($, agentId === undefined ? [agentName(id, lane.index)] : [agentId, agentName(id, lane.index)])
       await setLane($, lane.index, l => ({ ...l, agentId, model: spawned.model, status: 'running' }))
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
@@ -290,7 +325,10 @@ async function pulse($: EngineInterface): Promise<void> {
       for (const lane of b.lanes) {
         if (lane.agentId !== undefined) continue
         const found = agents.find(a => a.name === agentName(b.id, lane.index))
-        if (found !== undefined) await setLane($, lane.index, l => ({ ...l, agentId: found.id }))
+        if (found !== undefined) {
+          await setLane($, lane.index, l => ({ ...l, agentId: found.id }))
+          await hush($, [found.id])
+        }
       }
     }
     await update($, tick, n => n + 1)
@@ -322,6 +360,17 @@ export const register: Register = (on, options) => {
     }
     return { text: await startBout($, lang, task, repo) }
   })
+
+  // A lane's end is in the pane: its notice would only wake the main
+  // conversation to read what it already shows, spending a turn on it.
+  on('prompt.submit', async ($, e, next) => {
+    const kind = e.origin.kind
+    if (e.command === undefined && (kind === 'task-notification' || kind === 'peer' || kind === 'peer-send-message')) {
+      const keys = await read($, quiet)
+      if (keys.some(k => e.text.includes(k))) return { drop: w.quieted }
+    }
+    return next(e)
+  }).catch(($, e, next) => next(e))
 
   on('turn.step', async function* ($, e, next) {
     const result = yield* next(e)
@@ -370,7 +419,18 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text, Button } = $.ui.resolve(e)
     const b = await read($, bout)
-    await read($, tick)
+    const frame = await read($, tick)
+    // The terminal draws the gladiators as cells; every other surface as an animated SVG.
+    const picture = (bt: Bout, l: Lane) => {
+      const costume = costumeOf(bt, l)
+      const mood = moodOf(bt, l)
+      if (e.surface === 'terminal') {
+        const { Raster } = $.ui.resolve(e)
+        return <Raster key={`sprite-${l.index}`} columns={SIZE} rows={SIZE / 2} cells={spriteCells(costume, mood, frame)} />
+      }
+      const { Svg } = $.ui.resolve(e)
+      return <Svg source={spriteSvg(costume, mood)} alt={`${w.lane(l.index)}: ${w.status[l.status]}`} width={44} height={48} isInteractive />
+    }
     const now = await $.clock.now()
 
     if (b === null) return <Text dimColor>{w.noBout}</Text>
@@ -401,23 +461,26 @@ export const register: Register = (on, options) => {
             w.steps(l.steps),
           ].filter(Boolean)
           return (
-            <Box key={`lane-${l.index}`} flexDirection="column">
-              <Text bold wrap="truncate-end">
-                {w.lane(l.index)} <Text color={color(l.status)}>· {w.status[l.status]}</Text>
-              </Text>
-              <Text dimColor wrap="truncate-end">
-                {facts.join(' · ')}
-              </Text>
-              <Text dimColor wrap="truncate-end">
-                {count(all)} {w.tokens} ≈ {dollars(l.usd)} · {l.branch}
-              </Text>
-              {l.summary !== undefined && <Text wrap="truncate-end">{l.summary}</Text>}
-              {l.summary === undefined && l.status === 'done' && <Text dimColor>{w.noChanges}</Text>}
-              {l.error !== undefined && (
-                <Text color="error" wrap="truncate-end">
-                  {l.error}
+            <Box key={`lane-${l.index}`} flexDirection="row" gap={1} alignItems="center">
+              {picture(b, l)}
+              <Box flexDirection="column" flexShrink={1}>
+                <Text bold wrap="truncate-end">
+                  {w.lane(l.index)} <Text color={color(l.status)}>· {w.status[l.status]}</Text>
                 </Text>
-              )}
+                <Text dimColor wrap="truncate-end">
+                  {facts.join(' · ')}
+                </Text>
+                <Text dimColor wrap="truncate-end">
+                  {count(all)} {w.tokens} ≈ {dollars(l.usd)} · {l.branch}
+                </Text>
+                {l.summary !== undefined && <Text wrap="truncate-end">{l.summary}</Text>}
+                {l.summary === undefined && l.status === 'done' && <Text dimColor>{w.noChanges}</Text>}
+                {l.error !== undefined && (
+                  <Text color="error" wrap="truncate-end">
+                    {l.error}
+                  </Text>
+                )}
+              </Box>
             </Box>
           )
         })}
