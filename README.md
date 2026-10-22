@@ -10,7 +10,7 @@ This repository is a Claude Code plugin marketplace. Each mod lives in its own f
 | --- | --- |
 | [agent-crew](mods/agent-crew) | A side pane that shows the main agent and every subagent as little animated pixel critters dressed for their role (painter, explorer, builder, ...), with status, activity, model, effort, tokens and estimated cost. |
 | [model-router](mods/model-router) | Starts each subagent on the cheapest model and effort that fits its task (Haiku for a typo, Sonnet for everyday work, Opus for the hard parts), never above what it would have used; suggests a cheaper model for simple prompts. Shows its savings in agent-crew. |
-| [arena](mods/arena) | **Preview.** `/arena <task>` runs two Claude variants on the same task, each in its own git worktree, follows them live with status, tokens and cost, has a cheap judge model recommend the better change, and merges the one you keep. |
+| [arena](mods/arena) | `/arena <task>` runs two Claude variants on the same task, each in its own git worktree, follows them live with status, tokens and cost, has a cheap judge model recommend the better change, and merges the one you keep. |
 
 ## Install
 
@@ -45,6 +45,8 @@ echo '{"language":"it"}' | claude plugin configure <mod>@claude-mods --values-st
 ```
 
 A new value takes effect in the next session.
+
+On an older Claude Code without `claude plugin configure`, put the value in `~/.claude/settings.json` under `pluginConfigs`, keyed by the installed plugin (`"pluginConfigs": { "arena@claude-mods": { "options": { "language": "it" } } }`), or update Claude Code first.
 
 ## Updating
 

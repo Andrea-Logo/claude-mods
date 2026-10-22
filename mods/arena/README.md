@@ -1,7 +1,5 @@
 # arena
 
-> **Preview (0.3.3).** Tested with automated tests, on a scratch repository and in a local session; feedback welcome.
-
 Two Claude variants take on the same task at the same time, each in its own git worktree. A pane follows them side by side, live. When both are done, a cheap judge model compares the two changes and recommends one; you keep it with one click, and arena merges it into your branch and cleans up the rest.
 
 ```
