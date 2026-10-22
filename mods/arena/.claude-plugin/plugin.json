@@ -1,8 +1,10 @@
 {
   "name": "arena",
-  "version": "0.1.0",
-  "description": "Runs two Claude variants on the same task, each in its own git worktree, and follows them live in a pane with status, tokens and cost.",
-  "author": { "name": "Andrea Logoteta" },
+  "version": "0.2.0",
+  "description": "Runs two Claude variants on the same task, each in its own git worktree, follows them live in a pane with status, tokens and cost, lets a cheap judge model recommend the better change, and merges the one you keep.",
+  "author": {
+    "name": "Andrea Logoteta"
+  },
   "license": "MIT",
   "types": "./types/index.d.ts",
   "userConfig": {

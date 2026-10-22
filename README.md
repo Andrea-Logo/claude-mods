@@ -10,7 +10,7 @@ This repository is a Claude Code plugin marketplace. Each mod lives in its own f
 | --- | --- |
 | [agent-crew](mods/agent-crew) | A side pane that shows the main agent and every subagent as little animated pixel critters dressed for their role (painter, explorer, builder, ...), with status, activity, model, effort, tokens and estimated cost. |
 | [model-router](mods/model-router) | Starts each subagent on the cheapest model and effort that fits its task (Haiku for a typo, Sonnet for everyday work, Opus for the hard parts), never above what it would have used; suggests a cheaper model for simple prompts. Shows its savings in agent-crew. |
-| [arena](mods/arena) | **Preview.** `/arena <task>` runs two Claude variants on the same task, each in its own git worktree, and follows them live in a pane with status, tokens and cost. The judge that picks a winner comes next. |
+| [arena](mods/arena) | **Preview.** `/arena <task>` runs two Claude variants on the same task, each in its own git worktree, follows them live with status, tokens and cost, has a cheap judge model recommend the better change, and merges the one you keep. |
 
 ## Install
 
@@ -35,6 +35,16 @@ Answer `y` to add the marketplace, then choose a scope (project or user). The mo
 Mods use Claude Code's function-hook API, which is in early access, so they need a recent Claude Code. They are tested on **2.1.308**. Older releases may not know function-hook plugins at all: on 2.1.206, `claude plugin list` shows each mod as failed to load with `Hook load failed: ... "path": ["hooks"] ... expected record, received undefined`. If you see that, run `claude update`.
 
 The desktop app updates its own Claude Code separately from the one in your terminal, so a mod can work in the app's Code tab while `claude plugin list` in the terminal still reports it as failed.
+
+## Settings
+
+Each mod's README lists its settings. Set them with `/config <mod>.<setting>=<value>` where `/config` lists them, or from a terminal, which works everywhere, the desktop app included:
+
+```
+echo '{"language":"it"}' | claude plugin configure <mod>@claude-mods --values-stdin
+```
+
+A new value takes effect in the next session.
 
 ## Updating
 
