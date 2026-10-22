@@ -9,6 +9,11 @@
       "name": "agent-crew",
       "source": "./mods/agent-crew",
       "description": "A side pane that shows the main agent and every subagent as little animated pixel critters dressed for their role, with status, activity, model, effort, tokens and estimated cost."
+    },
+    {
+      "name": "model-router",
+      "source": "./mods/model-router",
+      "description": "Starts each subagent on the cheapest model and effort that fits its task, never above what it would have used, and suggests a cheaper model for simple prompts."
     }
   ]
 }

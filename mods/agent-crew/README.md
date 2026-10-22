@@ -17,6 +17,10 @@ The header adds up the estimate for the whole crew and, beside it, the session's
 
 The estimate uses Anthropic's first-party list prices per model (see `hooks/pricing.ts`). On a Pro or Max plan it is what the same tokens would cost on the API, not what you pay.
 
+## With model-router
+
+When the [model-router](../model-router) mod is installed too, each agent it routed gets one more line: its tier, the model it went to and why (keywords, your rule, the agent type, or Haiku's judgment), and what that saved. The header adds up the savings. Without the router the line is simply not there.
+
 ## Costumes
 
 The main agent is always the **captain**. Every other agent gets a costume from its type and from words in its task description:

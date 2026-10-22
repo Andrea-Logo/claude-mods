@@ -1,4 +1,4 @@
-import type { CrewStatus } from '../types'
+import type { CrewStatus, RouterRoute } from '../types'
 import type { Costume } from './sprites'
 
 export type Lang = 'en' | 'it'
@@ -19,6 +19,10 @@ type Words = {
   costume: Record<Costume, string>
   effort: Record<string, string>
   opened: string
+  routed: string
+  saved: string
+  tier: Record<RouterRoute['tier'], string>
+  by: Record<RouterRoute['by'], string>
 }
 
 const EN: Words = {
@@ -55,6 +59,16 @@ const EN: Words = {
   },
   effort: { low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' },
   opened: 'Crew pane opened.',
+  routed: 'routed',
+  saved: 'saved',
+  tier: { easy: 'easy', normal: 'normal', hard: 'hard' },
+  by: {
+    rule: 'your rule',
+    type: 'agent type',
+    keywords: 'keywords',
+    haiku: 'asked Haiku',
+    default: 'when unsure',
+  },
 }
 
 const IT: Words = {
@@ -91,6 +105,16 @@ const IT: Words = {
   },
   effort: { low: 'basso', medium: 'medio', high: 'alto', xhigh: 'molto alto', max: 'massimo' },
   opened: 'Pannello della ciurma aperto.',
+  routed: 'smistato',
+  saved: 'risparmiati',
+  tier: { easy: 'facile', normal: 'normale', hard: 'difficile' },
+  by: {
+    rule: 'tua regola',
+    type: 'tipo di agente',
+    keywords: 'parole chiave',
+    haiku: 'chiesto a Haiku',
+    default: 'nel dubbio',
+  },
 }
 
 export function words(lang: Lang): Words {
