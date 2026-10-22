@@ -201,6 +201,20 @@ async function openPane($: EngineInterface, title: string): Promise<string | und
   }
 }
 
+/**
+ * Ends a lane's agent. A named background agent stays alive after its answer,
+ * idle and waiting for a message, which keeps the session busy; arena has
+ * what it needs by then, so it stops it.
+ */
+async function stopAgent($: EngineInterface, agentId: string | undefined): Promise<void> {
+  if (agentId === undefined) return
+  try {
+    await $.tool.call({ tool: 'TaskStop', task_id: agentId })
+  } catch {
+    // Already gone, or the stop was refused: nothing left to do.
+  }
+}
+
 /** Commits a finished lane's work, records its summary, and calls the judge once all are in. */
 async function finishLane(
   $: EngineInterface,
@@ -217,6 +231,7 @@ async function finishLane(
   await changeLane($, agentId, l => ({ ...l, status, endedAt: now, error }))
   const summary = await commitLane($, lane.worktree, b.repoRoot, b.baseRef, lane.branch, `arena: variant ${lane.index}`)
   await changeLane($, agentId, l => ({ ...l, summary, isSettled: true }))
+  await stopAgent($, agentId)
   await judgeBout($, lang)
 }
 
@@ -300,13 +315,18 @@ async function keepLane($: EngineInterface, w: Words, index: number): Promise<vo
 }
 
 async function closeBout($: EngineInterface): Promise<void> {
+  const b = await read($, bout)
+  for (const lane of b?.lanes ?? []) await stopAgent($, lane.agentId)
   await update($, bout, () => null)
 }
 
 async function discardBout($: EngineInterface, message: string): Promise<void> {
   const b = await read($, bout)
   if (b === null) return
-  for (const lane of b.lanes) await removeLane($, b.repoRoot, lane.worktree, lane.branch)
+  for (const lane of b.lanes) {
+    await stopAgent($, lane.agentId)
+    await removeLane($, b.repoRoot, lane.worktree, lane.branch)
+  }
   await update($, bout, () => null)
   $.ui.toast(message)
 }

@@ -35,6 +35,8 @@ export type CrewMember = {
   tokens: Tokens
   /** Estimated dollars at list prices. */
   usd: number
+  /** True once the agent list has shown it, so leaving the list means it ended. */
+  isListed?: boolean
 }
 
 export type CrewTotals = { tokens: Tokens; usd: number; saved: number }
