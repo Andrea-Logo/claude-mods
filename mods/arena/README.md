@@ -1,6 +1,6 @@
 # arena
 
-> **Preview (0.3.2).** Tested with automated tests, on a scratch repository and in a local session; feedback welcome.
+> **Preview (0.3.3).** Tested with automated tests, on a scratch repository and in a local session; feedback welcome.
 
 Two Claude variants take on the same task at the same time, each in its own git worktree. A pane follows them side by side, live. When both are done, a cheap judge model compares the two changes and recommends one; you keep it with one click, and arena merges it into your branch and cleans up the rest.
 
@@ -15,7 +15,7 @@ Two Claude variants take on the same task at the same time, each in its own git 
 1. **Two worktrees.** Arena creates two git worktrees of your project, on branches `arena/<id>-1` and `arena/<id>-2`, from the commit you are on. They live in `.arena/` at the project's root, which arena adds to `.git/info/exclude`, so your `.gitignore` is not touched.
 2. **Two variants.** One Claude subagent starts in each worktree with your task, told to work only there.
 3. **Live pane.** The **Arena** pane shows each variant as a pixel gladiator in agent-crew's style (variant 1 with a red plume and a sword, variant 2 with a blue plume and a shield), with its status (starting, working, done, failed), model, elapsed time, steps, tokens and estimated cost. Gladiators walk while they work, wait while the judge thinks, and the variant you keep celebrates with a crown.
-4. **Commit.** When a variant finishes, arena commits its work on its branch and shows the size of its change (`1 file changed, 5 insertions(+)`).
+4. **Commit.** When a variant finishes, arena commits its work on its branch and shows the size of its change (`1 file changed, 5 insertions(+)`) and the start of the variant's own answer.
 5. **Judge.** Once both are done, Haiku reads the task and both diffs and recommends one, in a line or two. It costs a fraction of a cent. If only one variant left changes, that one is recommended without asking.
 6. **Keep.** A **Keep variant N** button per variant, the recommended one highlighted. Arena merges the one you pick into your branch (`git merge --no-ff`), then removes both worktrees and branches.
 
@@ -47,7 +47,7 @@ echo '{"language":"it"}' | claude plugin configure arena@claude-mods --values-st
 - In a cloud session the pane may not be drawn, depending on the app you watch it in. Arena still runs, and its reply says when the pane could not be shown.
 - One bout at a time.
 - A variant's completion notice is kept out of the main conversation, since its result is already in the pane. Without that, the main Claude would spend a turn reading what the pane shows.
-- Each variant's agent is stopped once its work is committed, asked again on the next seconds if it is still alive, three times at most; if it still cannot be stopped, the pane says what came back. A named background agent otherwise stays alive, idle and waiting for a message, and the session keeps showing as busy.
+- A variant whose agent has answered is done. Claude Code still lists such an agent as idle, since a message could resume it, but it is no longer running. An agent still running once its work is in is asked to stop, three times at most; if it cannot be stopped, the pane says what came back.
 
 ## Install
 

@@ -160,3 +160,19 @@ test('an agent that leaves the list is shown as done, not left idle', async ($, 
   await ui.unmount()
   isListed = true
 })
+
+test('a subagent listed idle after its answer shows as done', async ($, on) => {
+  const clock = mock.clock(on, { now: 1000 })
+  engine(on)
+  agentStatus = 'idle'
+  isListed = true
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.agent.spawn({ ...SPAWN, prompt: 'Look around', description: 'Find the config files', subagentType: 'Explore' })
+  await clock.advance(1000)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await ui.find({ type: 'Text', text: /done/ })).toBeDefined()
+  expect(await ui.find({ key: 'clear' })).toBeDefined()
+  await ui.unmount()
+  agentStatus = 'running'
+})

@@ -152,13 +152,16 @@ async function poll($: EngineInterface): Promise<void> {
     for (const a of agents) {
       const before = all[a.id] ?? member(a.id, now)
       const label = a.description || a.name || a.type
-      const isEnded = ENDED.includes(a.status)
+      // A subagent that answered is listed idle (a message could resume it); it
+      // has done its work. A teammate's idle is a wait between messages.
+      const status: CrewStatus = a.status === 'idle' && a.teammateId === undefined ? 'completed' : a.status
+      const isEnded = ENDED.includes(status)
       const after: CrewMember = {
         ...before,
         label: before.label === a.id || before.label === 'agent' ? label : before.label,
         type: a.type,
         parentId: a.parentId ?? MAIN,
-        status: a.status,
+        status,
         endedAt: isEnded ? (before.endedAt ?? now) : undefined,
         activity: isEnded ? undefined : before.activity,
         isListed: true,

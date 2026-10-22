@@ -19,11 +19,11 @@ const PANE = {
   },
 } as const
 
-type World = { git: string[][]; spawned: { cwd?: string; prompt: string }[]; stopped: string[] }
+type World = { git: string[][]; spawned: { cwd?: string; prompt: string }[]; stopped: string[]; listStatus: 'running' | 'idle' }
 
 /** Stands in for the engine and for git in a repository at /repo. */
 function engine(on: On, isRepo = true, isDirty = false, stopRefused = false): World {
-  const world: World = { git: [], spawned: [], stopped: [] }
+  const world: World = { git: [], spawned: [], stopped: [], listStatus: 'running' }
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('command.register', () => ({ value: { command: 'arena' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
@@ -75,7 +75,7 @@ function engine(on: On, isRepo = true, isDirty = false, stopRefused = false): Wo
   }))
   // The engine alone sets a spawn's agent id, so the lanes are found by name.
   on('agent.list', () => ({
-    value: world.spawned.map((_, i) => ({ id: `a${i + 1}`, name: `arena-3uw-${i + 1}`, description: '', type: 'general-purpose', status: 'running' })),
+    value: world.spawned.map((_, i) => ({ id: `a${i + 1}`, name: `arena-3uw-${i + 1}`, description: '', type: 'general-purpose', status: world.listStatus })),
   }))
   return world
 }
@@ -136,7 +136,7 @@ test('outside a git repository it says so and starts nothing', async ($, on) => 
 
 async function finishBoth($: Parameters<TestBody>[0]) {
   for (const id of ['a1', 'a2']) {
-    await $.turn.complete({ answer: 'done', durationMs: 1000, isAborted: false, turnId: `t-${id}`, agentId: id, reason: 'answer' })
+    await $.turn.complete({ answer: `Added reverse() to strings.js (${id}).`, durationMs: 1000, isAborted: false, turnId: `t-${id}`, agentId: id, reason: 'answer' })
   }
 }
 
@@ -147,7 +147,7 @@ test('the judge recommends a variant and keeping it merges it and cleans up', { 
   await $.command.run({ ...TYPED, command: 'arena', args: 'inverti una stringa' })
   await clock.advance(1000)
   await finishBoth($)
-  // Each lane's agent, still listed alive once its work is in, is stopped on the next pulse.
+  // Each lane's agent, still listed running once its work is in, is stopped on the next pulse.
   await clock.advance(1000)
   expect(world.stopped.sort()).toEqual(['a1', 'a2'])
 
@@ -219,5 +219,22 @@ test('an agent that cannot be stopped is asked three times, then the pane says w
   expect(world.stopped.filter(id => id === 'a1').length).toBe(3)
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   expect(await ui.find({ type: 'Text', text: /non è stato possibile fermare il suo agente: not allowed here/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('a lane whose agent is listed idle after answering is not stopped, and its answer shows', async ($, on) => {
+  const clock = mock.clock(on, { now: 5000 })
+  const world = engine(on)
+  world.listStatus = 'idle'
+  await $.session.start({ cwd: '/repo', surface: 'desktop', isInteractive: true })
+  await $.command.run({ ...TYPED, command: 'arena', args: 'reverse a string' })
+  await clock.advance(1000)
+  await finishBoth($)
+  await clock.advance(3000)
+
+  expect(world.stopped.length).toBe(0)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await ui.find({ type: 'Text', text: /Added reverse\(\) to strings\.js \(a1\)/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /could not be stopped/ })).toBeUndefined()
   await ui.unmount()
 })

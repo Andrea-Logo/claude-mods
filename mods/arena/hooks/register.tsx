@@ -231,7 +231,13 @@ async function stopSettled($: EngineInterface, b: Bout): Promise<void> {
   const agents = await $.agent.list()
   for (const lane of due) {
     const agent = agents.find(a => a.id === lane.agentId)
-    if (agent === undefined || ['completed', 'failed', 'killed'].includes(agent.status)) {
+    // A subagent that answered is listed idle, resumable by a message but not
+    // running: there is nothing left to stop. A teammate's idle is a wait.
+    const isOver =
+      agent === undefined ||
+      ['completed', 'failed', 'killed'].includes(agent.status) ||
+      (agent.status === 'idle' && agent.teammateId === undefined)
+    if (isOver) {
       await setLane($, lane.index, l => ({ ...l, isStopped: true, stopNote: undefined }))
       continue
     }
@@ -246,6 +252,7 @@ async function finishLane(
   lang: Lang,
   agentId: string,
   status: LaneStatus,
+  answer: string,
   error?: string,
 ): Promise<void> {
   const found = await laneOf($, agentId)
@@ -253,7 +260,7 @@ async function finishLane(
   const [b, lane] = found
   if (ENDED.includes(lane.status)) return
   const now = await $.clock.now()
-  await changeLane($, agentId, l => ({ ...l, status, endedAt: now, error }))
+  await changeLane($, agentId, l => ({ ...l, status, endedAt: now, error, answer: short(answer.replace(/\s+/g, ' '), 300) || undefined }))
   const summary = await commitLane($, lane.worktree, b.repoRoot, b.baseRef, lane.branch, `arena: variant ${lane.index}`)
   await changeLane($, agentId, l => ({ ...l, summary, isSettled: true }))
   await judgeBout($, lang)
@@ -453,7 +460,7 @@ export const register: Register = (on, options) => {
     if (e.agentId !== undefined) {
       const isOk = e.reason === 'answer'
       try {
-        await finishLane($, lang, e.agentId, isOk ? 'done' : 'failed', isOk ? undefined : e.reason)
+        await finishLane($, lang, e.agentId, isOk ? 'done' : 'failed', e.answer, isOk ? undefined : e.reason)
       } catch {
         // A lane that cannot be committed still shows as ended.
       }
@@ -520,6 +527,11 @@ export const register: Register = (on, options) => {
                   {count(all)} {w.tokens} ≈ {dollars(l.usd)} · {l.branch}
                 </Text>
                 {l.summary !== undefined && <Text wrap="truncate-end">{l.summary}</Text>}
+                {l.answer !== undefined && (
+                  <Text dimColor italic wrap="wrap">
+                    “{l.answer}”
+                  </Text>
+                )}
                 {l.summary === undefined && l.status === 'done' && <Text dimColor>{w.noChanges}</Text>}
                 {l.error !== undefined && (
                   <Text color="error" wrap="truncate-end">
