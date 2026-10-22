@@ -1,5 +1,5 @@
 import { expect, mock, test } from 'claude-code/testing'
-import type { On } from 'claude-code'
+import type { AgentStatus, On } from 'claude-code'
 
 const PANE = {
   plugin: 'agent-crew',
@@ -15,7 +15,15 @@ const PANE = {
   },
 } as const
 
-let agentStatus = 'running'
+let agentStatus: AgentStatus = 'running'
+
+const SPAWN = {
+  tool_use_id: 'toolu_1',
+  provider: { plugin: 'engine', tier: 'core' },
+  parentModel: 'claude-opus-5-5',
+  background: false,
+  fork: false,
+} as const
 
 /** Stands in for the engine beneath the plugin. */
 function engine(on: On) {
@@ -56,7 +64,7 @@ test('a subagent shows with its costume, model, effort, activity and cost', { op
   agentStatus = 'running'
 
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
-  await $.agent.spawn({ prompt: 'Make it pretty', description: 'Design the landing page', subagentType: 'general-purpose' })
+  await $.agent.spawn({ ...SPAWN, prompt: 'Make it pretty', description: 'Design the landing page', subagentType: 'general-purpose' })
   const stream = $.turn.step({ turnId: 't1', index: 0, model: 'claude-sonnet-5-5', effort: 'high', messageCount: 1, agentId: 'a1' })
   for await (const _ of stream) {
     // drain
@@ -83,7 +91,7 @@ test('finished agents grey out and can be cleared', async ($, on) => {
   agentStatus = 'running'
 
   await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
-  await $.agent.spawn({ prompt: 'Look around', description: 'Find the config files', subagentType: 'Explore' })
+  await $.agent.spawn({ ...SPAWN, prompt: 'Look around', description: 'Find the config files', subagentType: 'Explore' })
   agentStatus = 'completed'
   await clock.advance(1000)
 
