@@ -16,6 +16,7 @@ const PANE = {
 } as const
 
 let agentStatus: AgentStatus = 'running'
+let isListed = true
 
 const SPAWN = {
   tool_use_id: 'toolu_1',
@@ -32,7 +33,7 @@ function engine(on: On) {
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('agent.spawn', () => ({ model: 'claude-sonnet-5-5', agentId: 'a1' }))
   on('agent.list', () => ({
-    value: [
+    value: !isListed ? [] : [
       { id: 'a1', description: 'Design the landing page', type: 'general-purpose', status: agentStatus },
     ],
   }))
@@ -137,4 +138,25 @@ test('a routed agent shows its tier and what the router saved', { options: { lan
     expect(await ui.find({ type: 'Text', text: /risparmiati ≈ \$0\.007 · \$0\.500 sessione/ })).toBeDefined()
     await ui.unmount()
   }
+})
+
+test('an agent that leaves the list is shown as done, not left idle', async ($, on) => {
+  const clock = mock.clock(on, { now: 1000 })
+  engine(on)
+  agentStatus = 'idle'
+  isListed = true
+
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.agent.spawn({ ...SPAWN, prompt: 'Look around', description: 'Find the config files', subagentType: 'Explore' })
+  await clock.advance(1000)
+  isListed = false
+  await clock.advance(1000)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  // The captain is idle as it should be; the agent that left the list is done,
+  // which also brings up the button that clears finished agents.
+  expect(await ui.find({ type: 'Text', text: /done/ })).toBeDefined()
+  expect(await ui.find({ key: 'clear' })).toBeDefined()
+  await ui.unmount()
+  isListed = true
 })

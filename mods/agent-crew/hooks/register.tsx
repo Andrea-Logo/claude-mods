@@ -161,10 +161,18 @@ async function poll($: EngineInterface): Promise<void> {
         status: a.status,
         endedAt: isEnded ? (before.endedAt ?? now) : undefined,
         activity: isEnded ? undefined : before.activity,
+        isListed: true,
       }
       if (all[a.id] === undefined || JSON.stringify(after) !== JSON.stringify(before)) {
         changes[a.id] = after
       }
+    }
+    // The engine drops an agent from its list once it is stopped or done with;
+    // one the list showed and no longer does has ended, whatever it last said.
+    const listed = new Set(agents.map(a => a.id))
+    for (const m of Object.values(all)) {
+      if (m.id === MAIN || m.isListed !== true || listed.has(m.id) || ENDED.includes(m.status)) continue
+      changes[m.id] = { ...m, status: 'completed', endedAt: m.endedAt ?? now, activity: undefined }
     }
     if (Object.keys(changes).length > 0) {
       await update($, crew, current => ({ ...current, ...pick(changes, current) }))
@@ -201,6 +209,7 @@ function pick(
             parentId: p.parentId,
             status: p.status,
             endedAt: p.endedAt,
+            isListed: p.isListed,
             activity: ENDED.includes(p.status) ? undefined : c.activity,
           }
   }
@@ -326,11 +335,13 @@ export const register: Register = (on, options) => {
   on('tool.call', async ($, e, next) => {
     const id = e.agentId ?? MAIN
     const input = e as unknown as Record<string, unknown>
-    await touch($, id, m => ({
-      ...m,
-      tools: m.tools + 1,
-      activity: activityOf(lang, String(e.tool), input),
-    }))
+    // A plugin may call a tool on the main loop between turns (arena starting
+    // its lanes): that is not the captain at work.
+    await touch($, id, m =>
+      id === MAIN && m.status !== 'running'
+        ? m
+        : { ...m, tools: m.tools + 1, activity: activityOf(lang, String(e.tool), input) },
+    )
 
     return next(e)
   }).catch(($, e, next) => next(e))
