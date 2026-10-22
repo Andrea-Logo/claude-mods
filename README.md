@@ -10,6 +10,7 @@ This repository is a Claude Code plugin marketplace. Each mod lives in its own f
 | --- | --- |
 | [agent-crew](mods/agent-crew) | A side pane that shows the main agent and every subagent as little animated pixel critters dressed for their role (painter, explorer, builder, ...), with status, activity, model, effort, tokens and estimated cost. |
 | [model-router](mods/model-router) | Starts each subagent on the cheapest model and effort that fits its task (Haiku for a typo, Sonnet for everyday work, Opus for the hard parts), never above what it would have used; suggests a cheaper model for simple prompts. Shows its savings in agent-crew. |
+| [arena](mods/arena) | **Preview.** `/arena <task>` runs two Claude variants on the same task, each in its own git worktree, and follows them live in a pane with status, tokens and cost. The judge that picks a winner comes next. |
 
 ## Install
 
@@ -63,6 +64,8 @@ echo '{"language":"it"}' | claude plugin configure agent-crew@claude-mods --valu
 ```
 
 `|| true` keeps a slow network from stopping the session from starting.
+
+In a cloud session the mods run (model-router routes subagents, arena starts its variants), but the app you watch the session in may not draw their panes: agent-crew and the Arena pane show in local sessions.
 
 ## Developing
 
