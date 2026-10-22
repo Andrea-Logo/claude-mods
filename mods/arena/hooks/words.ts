@@ -33,6 +33,7 @@ export type Words = {
   conflict: (detail: string) => string
   close: string
   quieted: string
+  stillAlive: (note: string) => string
 }
 
 const EN: Words = {
@@ -67,6 +68,7 @@ const EN: Words = {
   conflict: detail => `Not merged: git could not merge the change cleanly${detail ? ` (${detail})` : ''}. The merge was undone; nothing changed.`,
   close: 'Close',
   quieted: 'arena: a variant finished; its result is in the Arena pane.',
+  stillAlive: note => `its agent could not be stopped: ${note}`,
 }
 
 const IT: Words = {
@@ -101,6 +103,7 @@ const IT: Words = {
   conflict: detail => `Non unita: git non è riuscito a unire la modifica senza conflitti${detail ? ` (${detail})` : ''}. L'unione è stata annullata; non è cambiato niente.`,
   close: 'Chiudi',
   quieted: 'arena: una variante ha finito; il risultato è nel pannello Arena.',
+  stillAlive: note => `non è stato possibile fermare il suo agente: ${note}`,
 }
 
 export function words(lang: Lang): Words {

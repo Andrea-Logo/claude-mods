@@ -25,6 +25,11 @@ export type Lane = {
   summary?: string
   /** True once the lane's work is committed and its summary read. */
   isSettled?: boolean
+  /** True once the agent list shows the lane's agent ended or gone. */
+  isStopped?: boolean
+  /** How many times arena asked to stop the agent, and what the last ask got back. */
+  stopTries?: number
+  stopNote?: string
   error?: string
 }
 
