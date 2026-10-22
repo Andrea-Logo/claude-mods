@@ -14,6 +14,11 @@
       "name": "model-router",
       "source": "./mods/model-router",
       "description": "Starts each subagent on the cheapest model and effort that fits its task, never above what it would have used, and suggests a cheaper model for simple prompts."
+    },
+    {
+      "name": "arena",
+      "source": "./mods/arena",
+      "description": "Preview: runs two Claude variants on the same task, each in its own git worktree, and follows them live with status, tokens and cost."
     }
   ]
 }

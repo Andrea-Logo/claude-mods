@@ -1,0 +1,16 @@
+{
+  "name": "arena",
+  "version": "0.1.0",
+  "description": "Runs two Claude variants on the same task, each in its own git worktree, and follows them live in a pane with status, tokens and cost.",
+  "author": { "name": "Andrea Logoteta" },
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "language": {
+      "type": "string",
+      "title": "Language",
+      "description": "Language of the pane's labels. One of: en, it.",
+      "default": "en"
+    }
+  }
+}
