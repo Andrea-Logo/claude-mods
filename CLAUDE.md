@@ -21,3 +21,4 @@ A public Claude Code plugin marketplace of small mods (function-hook plugins), o
 - Never push to `main` directly: work on a branch and open a pull request for Andrea to merge.
 - A mod is developed and tried live in the session's own mods folder (the plugin-authoring skill says where), then copied here without the engine-written `.claude-plugin/types/` folder.
 - Model prices in a mod come from Anthropic's published list prices; update them when they change.
+- Keep manifests loadable by older Claude Code releases: no `options` on `userConfig` fields (older releases reject the whole plugin as an invalid manifest). List the allowed values in the field's `description` and read the value forgivingly in code, falling back to the default.

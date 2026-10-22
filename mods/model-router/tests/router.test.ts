@@ -1,4 +1,5 @@
 import { expect, mock, test } from 'claude-code/testing'
+import type { TestBody } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
 const SPAWN = {
@@ -45,7 +46,7 @@ function engine(on: On, classifyAs = 'medium'): Seen {
 }
 
 async function step(
-  $: Parameters<Parameters<typeof test>[1]>[0],
+  $: Parameters<TestBody>[0],
   model: string,
   effort?: 'high' | 'medium',
 ) {

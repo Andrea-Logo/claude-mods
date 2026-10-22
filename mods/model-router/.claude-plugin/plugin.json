@@ -1,24 +1,24 @@
 {
   "name": "model-router",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Picks a cheaper model and effort for each subagent from how hard its task is (Haiku for a typo, Sonnet for everyday work, Opus for the hard parts), never above what it would have used, and suggests a cheaper model for simple prompts.",
-  "author": { "name": "Andrea Logoteta" },
+  "author": {
+    "name": "Andrea Logoteta"
+  },
   "license": "MIT",
   "types": "./types/index.d.ts",
   "userConfig": {
     "language": {
       "type": "string",
       "title": "Language",
-      "description": "Language of the suggestions the router shows.",
-      "default": "en",
-      "options": ["en", "it"]
+      "description": "Language of the suggestions the router shows. One of: en, it.",
+      "default": "en"
     },
     "mode": {
       "type": "string",
       "title": "Mode",
-      "description": "How hard to save. careful: Sonnet at high effort for everyday tasks. balanced: Sonnet at medium effort as the base, Opus only for clearly hard tasks. aggressive: Haiku whenever it can, Sonnet for hard tasks.",
-      "default": "balanced",
-      "options": ["careful", "balanced", "aggressive"]
+      "description": "How hard to save. careful: Sonnet at high effort for everyday tasks. balanced: Sonnet at medium effort as the base, Opus only for clearly hard tasks. aggressive: Haiku whenever it can, Sonnet for hard tasks. One of: careful, balanced, aggressive.",
+      "default": "balanced"
     },
     "rules": {
       "type": "string",

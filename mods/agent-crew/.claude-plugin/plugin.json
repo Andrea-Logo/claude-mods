@@ -1,17 +1,18 @@
 {
   "name": "agent-crew",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A side pane that shows the main agent and every subagent as little animated pixel critters dressed for their role, with status, current activity, model, effort, tokens and an estimated dollar cost.",
-  "author": { "name": "Andrea Logoteta" },
+  "author": {
+    "name": "Andrea Logoteta"
+  },
   "license": "MIT",
   "types": "./types/index.d.ts",
   "userConfig": {
     "language": {
       "type": "string",
       "title": "Language",
-      "description": "Language of the pane's labels.",
-      "default": "en",
-      "options": ["en", "it"]
+      "description": "Language of the pane's labels. One of: en, it.",
+      "default": "en"
     },
     "costumes": {
       "type": "string",

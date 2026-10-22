@@ -45,9 +45,10 @@ async function record($: EngineInterface, id: string, route: RouterRoute): Promi
 }
 
 export const register: Register = (on, options) => {
-  const isItalian = options.language === 'it'
-  const mode: Mode =
-    options.mode === 'careful' || options.mode === 'aggressive' ? options.mode : 'balanced'
+  // Settings are free text, so read them forgivingly; anything unknown is the default.
+  const isItalian = String(options.language).trim().toLowerCase() === 'it'
+  const asked = String(options.mode).trim().toLowerCase()
+  const mode: Mode = asked === 'careful' || asked === 'aggressive' ? asked : 'balanced'
   const rules = parseRules(typeof options.rules === 'string' ? options.rules : '')
   const askHaikuWhenUnsure = options.askHaiku !== false
   const suggestMain = options.suggestMain !== false

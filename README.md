@@ -29,6 +29,17 @@ claude plugin install agent-crew --marketplace Andrea-Logo/claude-mods
 
 Answer `y` to add the marketplace, then choose a scope (project or user). The mod is active right away.
 
+Mods use Claude Code's function-hook API, which is in early access: keep Claude Code up to date (`claude update`). If `claude plugin list` shows a mod as failed to load, update Claude Code first.
+
+To get a newer version of a mod:
+
+```
+claude plugin marketplace update claude-mods
+claude plugin update <mod>@claude-mods
+```
+
+then restart Claude Code.
+
 ## Developing
 
 Each mod is a plugin folder with `.claude-plugin/plugin.json`, `hooks/hooks.json` and a hooks module, the `types/index.d.ts` contract and tests in `tests/`. From a mod's folder:
