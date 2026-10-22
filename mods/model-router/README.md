@@ -48,6 +48,8 @@ What counts is the cost of the finished job, not of one request. If a task goes 
 
 ## Install
 
+Needs a recent Claude Code (tested on 2.1.308); see [Requirements](../../README.md#requirements). For cloud sessions, see [Cloud sessions](../../README.md#cloud-sessions).
+
 ```
 /plugin install model-router --marketplace Andrea-Logo/claude-mods
 ```
