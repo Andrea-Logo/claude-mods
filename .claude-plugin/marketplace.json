@@ -1,0 +1,14 @@
+{
+  "name": "claude-mods",
+  "owner": {
+    "name": "Andrea Logoteta"
+  },
+  "description": "Small mods for Claude Code: panes, toasts, commands and rules that change Claude Code's own interface and behaviour.",
+  "plugins": [
+    {
+      "name": "agent-crew",
+      "source": "./mods/agent-crew",
+      "description": "A side pane that shows the main agent and every subagent as little animated pixel critters dressed for their role, with status, activity, model, effort, tokens and estimated cost."
+    }
+  ]
+}
