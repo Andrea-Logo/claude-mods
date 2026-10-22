@@ -22,7 +22,7 @@ const PANE = {
 type World = { git: string[][]; spawned: { cwd?: string; prompt: string }[]; stopped: string[] }
 
 /** Stands in for the engine and for git in a repository at /repo. */
-function engine(on: On, isRepo = true, isDirty = false): World {
+function engine(on: On, isRepo = true, isDirty = false, stopRefused = false): World {
   const world: World = { git: [], spawned: [], stopped: [] }
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('command.register', () => ({ value: { command: 'arena' } }))
@@ -64,7 +64,7 @@ function engine(on: On, isRepo = true, isDirty = false): World {
   on('prompt.submit', (_, e) => ({ text: e.text }))
   on('tool.call', { tool: 'TaskStop' }, (_, e) => {
     world.stopped.push(String(e.task_id))
-    return { result: {} }
+    return stopRefused ? { deny: 'not allowed here' } : { result: {} }
   })
   on('model.complete', () => ({
     value: {
@@ -147,14 +147,15 @@ test('the judge recommends a variant and keeping it merges it and cleans up', { 
   await $.command.run({ ...TYPED, command: 'arena', args: 'inverti una stringa' })
   await clock.advance(1000)
   await finishBoth($)
+  // Each lane's agent, still listed alive once its work is in, is stopped on the next pulse.
+  await clock.advance(1000)
+  expect(world.stopped.sort()).toEqual(['a1', 'a2'])
 
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   expect(await ui.find({ type: 'Text', text: /Variante 2 · consigliata: più corta/ })).toBeDefined()
   expect(await ui.find({ key: 'keep-1' })).toBeDefined()
   await ui.press({ key: 'keep-2' })
 
-  // Each lane's agent is stopped once its work is in, so the session goes idle.
-  expect(world.stopped.sort()).toEqual(['a1', 'a2'])
   const merge = world.git.find(a => a.includes('merge') && !a.includes('--abort'))
   expect(merge).toContain('arena/3uw-2')
   expect(world.git.filter(a => a[1] === 'worktree' && a[2] === 'remove').length).toBe(2)
@@ -204,4 +205,19 @@ test("a lane's completion notice stays out of the main conversation", async ($, 
 
   const typed = await $.prompt.submit({ text: 'what did a1 do?', wait: false, origin: { kind: 'composer' } })
   expect(JSON.stringify(typed)).not.toContain('drop')
+})
+
+test('an agent that cannot be stopped is asked three times, then the pane says why', { options: { language: 'it' } }, async ($, on) => {
+  const clock = mock.clock(on, { now: 5000 })
+  const world = engine(on, true, false, true)
+  await $.session.start({ cwd: '/repo', surface: 'desktop', isInteractive: true })
+  await $.command.run({ ...TYPED, command: 'arena', args: 'inverti una stringa' })
+  await clock.advance(1000)
+  await finishBoth($)
+  await clock.advance(5000)
+
+  expect(world.stopped.filter(id => id === 'a1').length).toBe(3)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await ui.find({ type: 'Text', text: /non è stato possibile fermare il suo agente: not allowed here/ })).toBeDefined()
+  await ui.unmount()
 })

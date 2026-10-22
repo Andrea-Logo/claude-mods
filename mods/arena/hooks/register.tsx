@@ -206,12 +206,37 @@ async function openPane($: EngineInterface, title: string): Promise<string | und
  * idle and waiting for a message, which keeps the session busy; arena has
  * what it needs by then, so it stops it.
  */
-async function stopAgent($: EngineInterface, agentId: string | undefined): Promise<void> {
-  if (agentId === undefined) return
+async function stopAgent($: EngineInterface, agentId: string | undefined): Promise<string | undefined> {
+  if (agentId === undefined) return undefined
   try {
-    await $.tool.call({ tool: 'TaskStop', task_id: agentId })
-  } catch {
-    // Already gone, or the stop was refused: nothing left to do.
+    const r = await $.tool.call({ tool: 'TaskStop', task_id: agentId })
+    if (r.deny !== undefined) return r.deny
+    return r.isError === true ? (r.text ?? 'error') : undefined
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error)
+  }
+}
+
+/** How many times arena asks to stop a lane's agent before it gives up and says so. */
+const STOP_TRIES = 3
+
+/**
+ * Stops every settled lane whose agent the list still shows alive. An ask made
+ * while the agent is still closing its turn can miss, so it is asked again on
+ * the next pulses, a few times at most.
+ */
+async function stopSettled($: EngineInterface, b: Bout): Promise<void> {
+  const due = b.lanes.filter(l => l.isSettled === true && l.agentId !== undefined && l.isStopped !== true && (l.stopTries ?? 0) < STOP_TRIES)
+  if (due.length === 0) return
+  const agents = await $.agent.list()
+  for (const lane of due) {
+    const agent = agents.find(a => a.id === lane.agentId)
+    if (agent === undefined || ['completed', 'failed', 'killed'].includes(agent.status)) {
+      await setLane($, lane.index, l => ({ ...l, isStopped: true, stopNote: undefined }))
+      continue
+    }
+    const note = await stopAgent($, lane.agentId)
+    await setLane($, lane.index, l => ({ ...l, stopTries: (l.stopTries ?? 0) + 1, stopNote: note }))
   }
 }
 
@@ -231,7 +256,6 @@ async function finishLane(
   await changeLane($, agentId, l => ({ ...l, status, endedAt: now, error }))
   const summary = await commitLane($, lane.worktree, b.repoRoot, b.baseRef, lane.branch, `arena: variant ${lane.index}`)
   await changeLane($, agentId, l => ({ ...l, summary, isSettled: true }))
-  await stopAgent($, agentId)
   await judgeBout($, lang)
 }
 
@@ -339,7 +363,9 @@ function agentName(boutId: string, index: number): string {
 async function pulse($: EngineInterface): Promise<void> {
   try {
     const b = await read($, bout)
-    if (b === null || b.lanes.every(l => ENDED.includes(l.status))) return
+    if (b === null) return
+    await stopSettled($, b)
+    if (b.lanes.every(l => ENDED.includes(l.status))) return
     if (b.lanes.some(l => l.agentId === undefined && !ENDED.includes(l.status))) {
       const agents = await $.agent.list()
       for (const lane of b.lanes) {
@@ -498,6 +524,11 @@ export const register: Register = (on, options) => {
                 {l.error !== undefined && (
                   <Text color="error" wrap="truncate-end">
                     {l.error}
+                  </Text>
+                )}
+                {l.isStopped !== true && (l.stopTries ?? 0) >= STOP_TRIES && l.stopNote !== undefined && (
+                  <Text dimColor wrap="truncate-end">
+                    {w.stillAlive(short(l.stopNote, 120))}
                   </Text>
                 )}
               </Box>
