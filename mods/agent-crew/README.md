@@ -54,6 +54,8 @@ The desktop app, the web and the IDE draw the critters as animated SVG. A termin
 
 ## Install
 
+Needs a recent Claude Code (tested on 2.1.308); see [Requirements](../../README.md#requirements). For cloud sessions, see [Cloud sessions](../../README.md#cloud-sessions).
+
 ```
 /plugin install agent-crew --marketplace Andrea-Logo/claude-mods
 ```
