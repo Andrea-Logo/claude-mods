@@ -62,3 +62,39 @@ export async function removeLane(
   await git($, ['worktree', 'remove', '--force', worktree], repoRoot)
   await git($, ['branch', '-D', branch], repoRoot)
 }
+
+/** The full diff of a lane's branch against the bout's base. */
+export async function diffOf($: EngineInterface, repoRoot: string, baseRef: string, branch: string): Promise<string> {
+  const diff = await git($, ['diff', baseRef, branch], repoRoot)
+  return diff.isOk ? diff.out : ''
+}
+
+export type MergeResult = { isMerged: boolean; problem?: 'wrong-branch' | 'dirty' | 'conflict'; detail: string }
+
+/**
+ * Merges a lane's branch into the base branch, refusing rather than risking
+ * the person's work: the repository must still be on the base branch, with no
+ * uncommitted changes, and a merge that conflicts is undone.
+ */
+export async function mergeLane(
+  $: EngineInterface,
+  repoRoot: string,
+  baseBranch: string,
+  branch: string,
+  message: string,
+): Promise<MergeResult> {
+  const current = await git($, ['rev-parse', '--abbrev-ref', 'HEAD'], repoRoot)
+  if (!current.isOk || current.out !== baseBranch) {
+    return { isMerged: false, problem: 'wrong-branch', detail: current.out }
+  }
+  const status = await git($, ['status', '--porcelain'], repoRoot)
+  if (!status.isOk || status.out.length > 0) return { isMerged: false, problem: 'dirty', detail: status.out }
+
+  // Use the person's own identity; only a repository with none gets the arena's.
+  const email = await git($, ['config', 'user.email'], repoRoot)
+  const identity = email.isOk && email.out.length > 0 ? [] : ['-c', 'user.name=Arena', '-c', 'user.email=arena@localhost']
+  const merged = await git($, [...identity, 'merge', '--no-ff', '--no-verify', '-m', message, branch], repoRoot)
+  if (merged.isOk) return { isMerged: true, detail: merged.out }
+  await git($, ['merge', '--abort'], repoRoot)
+  return { isMerged: false, problem: 'conflict', detail: merged.err || merged.out }
+}

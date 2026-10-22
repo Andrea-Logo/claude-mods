@@ -1,4 +1,5 @@
 import { expect, mock, test } from 'claude-code/testing'
+import type { TestBody } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
 /** A command typed at the prompt, as the engine stamps it. */
@@ -21,7 +22,7 @@ const PANE = {
 type World = { git: string[][]; spawned: { cwd?: string; prompt: string }[] }
 
 /** Stands in for the engine and for git in a repository at /repo. */
-function engine(on: On, isRepo = true): World {
+function engine(on: On, isRepo = true, isDirty = false): World {
   const world: World = { git: [], spawned: [] }
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('command.register', () => ({ value: { command: 'arena' } }))
@@ -41,6 +42,8 @@ function engine(on: On, isRepo = true): World {
     if (args === 'rev-parse --abbrev-ref HEAD') return ok('main\n')
     if (args.startsWith('rev-parse --path-format')) return ok('/repo/.git\n')
     if (args.startsWith('diff --stat')) return ok(' reverse.ts | 5 +++++\n 1 file changed, 5 insertions(+)\n')
+    if (args === 'status --porcelain') return ok(isDirty ? ' M notes.md\n' : '')
+    if (args.startsWith('diff abc123')) return ok(`+export const reverse = s => [...s].reverse().join('') // ${args}`)
     return ok()
   })
   on('agent.spawn', (_, e) => {
@@ -58,6 +61,13 @@ function engine(on: On, isRepo = true): World {
     }
   })
   on('turn.complete', (_, e) => ({ text: e.answer }))
+  on('model.complete', () => ({
+    value: {
+      isAnswered: true,
+      text: 'WINNER: 2\nREASON: più corta e altrettanto corretta.',
+      usage: { input_tokens: 2000, output_tokens: 40, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+    },
+  }))
   // The engine alone sets a spawn's agent id, so the lanes are found by name.
   on('agent.list', () => ({
     value: world.spawned.map((_, i) => ({ id: `a${i + 1}`, name: `arena-3uw-${i + 1}`, description: '', type: 'general-purpose', status: 'running' })),
@@ -115,4 +125,47 @@ test('outside a git repository it says so and starts nothing', async ($, on) => 
   const reply = await $.command.run({ ...TYPED, command: 'arena', args: 'do something' })
   expect(JSON.stringify(reply)).toContain('git repository')
   expect(world.spawned.length).toBe(0)
+})
+
+async function finishBoth($: Parameters<TestBody>[0]) {
+  for (const id of ['a1', 'a2']) {
+    await $.turn.complete({ answer: 'done', durationMs: 1000, isAborted: false, turnId: `t-${id}`, agentId: id, reason: 'answer' })
+  }
+}
+
+test('the judge recommends a variant and keeping it merges it and cleans up', { options: { language: 'it' } }, async ($, on) => {
+  const clock = mock.clock(on, { now: 5000 })
+  const world = engine(on)
+  await $.session.start({ cwd: '/repo', surface: 'desktop', isInteractive: true })
+  await $.command.run({ ...TYPED, command: 'arena', args: 'inverti una stringa' })
+  await clock.advance(1000)
+  await finishBoth($)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await ui.find({ type: 'Text', text: /Variante 2 · consigliata: più corta/ })).toBeDefined()
+  expect(await ui.find({ key: 'keep-1' })).toBeDefined()
+  await ui.press({ key: 'keep-2' })
+
+  const merge = world.git.find(a => a.includes('merge') && !a.includes('--abort'))
+  expect(merge).toContain('arena/3uw-2')
+  expect(world.git.filter(a => a[1] === 'worktree' && a[2] === 'remove').length).toBe(2)
+  expect(await ui.find({ type: 'Text', text: /Variante 2 unita in main/ })).toBeDefined()
+  expect(await ui.find({ key: 'close' })).toBeDefined()
+  await ui.unmount()
+})
+
+test('with uncommitted changes nothing is merged', { options: { language: 'it' } }, async ($, on) => {
+  const clock = mock.clock(on, { now: 5000 })
+  const world = engine(on, true, true)
+  await $.session.start({ cwd: '/repo', surface: 'desktop', isInteractive: true })
+  await $.command.run({ ...TYPED, command: 'arena', args: 'inverti una stringa' })
+  await clock.advance(1000)
+  await finishBoth($)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: 'keep-1' })
+  expect(world.git.some(a => a.includes('merge'))).toBe(false)
+  expect(world.git.some(a => a[1] === 'worktree' && a[2] === 'remove')).toBe(false)
+  expect(await ui.find({ type: 'Text', text: /modifiche non salvate/ })).toBeDefined()
+  await ui.unmount()
 })

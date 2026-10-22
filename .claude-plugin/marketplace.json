@@ -18,7 +18,7 @@
     {
       "name": "arena",
       "source": "./mods/arena",
-      "description": "Preview: runs two Claude variants on the same task, each in its own git worktree, and follows them live with status, tokens and cost."
+      "description": "Preview: runs two Claude variants on the same task in their own git worktrees, follows them live, has a cheap judge recommend the better change, and merges the one you keep."
     }
   ]
 }

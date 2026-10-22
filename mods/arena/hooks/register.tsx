@@ -1,10 +1,12 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Bout, Lane, LaneStatus, Tokens } from '../types'
-import { commitLane, git, ignoreArenaFolder, removeLane } from './git'
+import type { Bout, Judge, Lane, LaneStatus, Tokens } from '../types'
+import { commitLane, diffOf, git, ignoreArenaFolder, mergeLane, removeLane } from './git'
+import { SYSTEM, judgePrompt, readVerdict } from './judge'
 import { costOf, modelName } from './pricing'
 import { words } from './words'
+import type { Words } from './words'
 import type { Lang } from './words'
 
 const PANE = 'arena'
@@ -92,9 +94,10 @@ async function startBout($: EngineInterface, lang: Lang, task: string, repo?: st
   const current = await read($, bout)
   if (current !== null && current.lanes.some(l => !ENDED.includes(l.status))) return w.busy
 
-  const root = repo ?? (await $.session.root())
+  const home = repo?.startsWith('~') ? ((await $.env.get('HOME')) ?? '') : ''
+  const root = repo === undefined ? await $.session.root() : repo.startsWith('~') ? `${home}${repo.slice(1)}` : repo
   const top = await git($, ['rev-parse', '--show-toplevel'], root)
-  if (!top.isOk) return w.notRepo
+  if (!top.isOk) return w.notRepo(root, short(top.err, 160))
   const repoRoot = top.out
   const head = await git($, ['rev-parse', 'HEAD'], repoRoot)
   if (!head.isOk) return w.noCommit
@@ -163,8 +166,14 @@ async function openPane($: EngineInterface, title: string): Promise<string | und
   }
 }
 
-/** Commits a finished lane's work and records its summary. */
-async function finishLane($: EngineInterface, agentId: string, status: LaneStatus, error?: string): Promise<void> {
+/** Commits a finished lane's work, records its summary, and calls the judge once all are in. */
+async function finishLane(
+  $: EngineInterface,
+  lang: Lang,
+  agentId: string,
+  status: LaneStatus,
+  error?: string,
+): Promise<void> {
   const found = await laneOf($, agentId)
   if (found === undefined) return
   const [b, lane] = found
@@ -172,7 +181,91 @@ async function finishLane($: EngineInterface, agentId: string, status: LaneStatu
   const now = await $.clock.now()
   await changeLane($, agentId, l => ({ ...l, status, endedAt: now, error }))
   const summary = await commitLane($, lane.worktree, b.repoRoot, b.baseRef, lane.branch, `arena: variant ${lane.index}`)
-  await changeLane($, agentId, l => ({ ...l, summary }))
+  await changeLane($, agentId, l => ({ ...l, summary, isSettled: true }))
+  await judgeBout($, lang)
+}
+
+/** Sets the bout's judge, while the bout is still the current one. */
+async function setJudge($: EngineInterface, judge: Judge): Promise<void> {
+  await update($, bout, b => (b === null ? b : { ...b, judge }))
+}
+
+/**
+ * Once every lane is settled, asks a cheap model which change to keep. Two
+ * lanes settling together both get here; the token makes one of them judge.
+ */
+async function judgeBout($: EngineInterface, lang: Lang): Promise<void> {
+  const w = words(lang)
+  const token = `${await $.clock.now()}-${Math.random()}`
+  const thinking: Judge = { status: 'thinking', token, usd: 0 }
+  await update($, bout, b =>
+    b === null || b.judge !== undefined || !b.lanes.every(l => l.isSettled === true) ? b : { ...b, judge: thinking },
+  )
+  const b = await read($, bout)
+  if (b === null || b.judge?.token !== token) return
+
+  const kept = b.lanes.filter(l => l.status === 'done' && l.summary !== undefined)
+  const [only] = kept
+  if (kept.length === 0) return setJudge($, { status: 'skipped', token, reason: w.nothingToKeep, usd: 0 })
+  if (kept.length === 1 && only !== undefined) {
+    return setJudge($, { status: 'skipped', token, winner: only.index, reason: w.onlyOne(only.index), usd: 0 })
+  }
+
+  try {
+    const entries = await Promise.all(
+      kept.map(async l => ({ index: l.index, diff: await diffOf($, b.repoRoot, b.baseRef, l.branch) })),
+    )
+    const reply = await $.model.complete({
+      model: 'haiku',
+      system: SYSTEM,
+      prompt: judgePrompt(b.task, entries, lang),
+      maxTokens: 400,
+      effort: 'low',
+      timeoutMs: 90_000,
+    })
+    const usd = costOf('claude-haiku-5-5', {
+      input: reply.usage.input_tokens,
+      output: reply.usage.output_tokens,
+      cacheRead: reply.usage.cache_read_input_tokens,
+      cacheWrite: reply.usage.cache_creation_input_tokens,
+    })
+    const verdict = reply.isAnswered ? readVerdict(reply.text, kept.map(l => l.index)) : undefined
+    await setJudge(
+      $,
+      verdict === undefined
+        ? { status: 'failed', token, reason: w.judgeFailed, usd }
+        : { status: 'done', token, winner: verdict.winner, reason: verdict.reason, usd },
+    )
+  } catch {
+    await setJudge($, { status: 'failed', token, reason: w.judgeFailed, usd: 0 })
+  }
+}
+
+/** Merges the lane the person picked, then clears the worktrees and branches. */
+async function keepLane($: EngineInterface, w: Words, index: number): Promise<void> {
+  const b = await read($, bout)
+  const lane = b?.lanes.find(l => l.index === index)
+  if (b === null || lane === undefined || b.outcome?.isMerged === true) return
+  const result = await mergeLane($, b.repoRoot, b.baseBranch, lane.branch, `arena: keep variant ${index}: ${short(b.task, 60)}`)
+  if (!result.isMerged) {
+    const message =
+      result.problem === 'wrong-branch'
+        ? w.wrongBranch(b.baseBranch, result.detail)
+        : result.problem === 'dirty'
+          ? w.dirty
+          : w.conflict(short(result.detail, 120))
+    await update($, bout, x => (x === null ? x : { ...x, outcome: { isMerged: false, index, message } }))
+    $.ui.toast(message)
+    return
+  }
+  for (const l of b.lanes) await removeLane($, b.repoRoot, l.worktree, l.branch)
+  const message = w.merged(index, b.baseBranch)
+  await update($, bout, x => (x === null ? x : { ...x, outcome: { isMerged: true, index, message } }))
+  $.ui.toast(message)
+}
+
+async function closeBout($: EngineInterface): Promise<void> {
+  await update($, bout, () => null)
 }
 
 async function discardBout($: EngineInterface, message: string): Promise<void> {
@@ -265,7 +358,7 @@ export const register: Register = (on, options) => {
     if (e.agentId !== undefined) {
       const isOk = e.reason === 'answer'
       try {
-        await finishLane($, e.agentId, isOk ? 'done' : 'failed', isOk ? undefined : e.reason)
+        await finishLane($, lang, e.agentId, isOk ? 'done' : 'failed', isOk ? undefined : e.reason)
       } catch {
         // A lane that cannot be committed still shows as ended.
       }
@@ -282,8 +375,12 @@ export const register: Register = (on, options) => {
 
     if (b === null) return <Text dimColor>{w.noBout}</Text>
 
-    const total = b.lanes.reduce((sum, l) => sum + l.usd, 0)
+    const total = b.lanes.reduce((sum, l) => sum + l.usd, b.judge?.usd ?? 0)
     const isOver = b.lanes.every(l => ENDED.includes(l.status))
+    const judge = b.judge
+    const outcome = b.outcome
+    const isMerged = outcome?.isMerged === true
+    const keepable = b.lanes.filter(l => l.status === 'done' && l.summary !== undefined)
     const color = (s: LaneStatus) => (s === 'running' ? 'success' : s === 'failed' ? 'error' : undefined)
 
     return (
@@ -324,7 +421,38 @@ export const register: Register = (on, options) => {
             </Box>
           )
         })}
-        {isOver && <Button key="discard" label={w.discard} onPress={() => void discardBout($, w.discarded)} />}
+        {judge !== undefined && (
+          <Box flexDirection="column">
+            <Text bold>{w.judge}</Text>
+            {judge.status === 'thinking' ? (
+              <Text dimColor>{w.judgeThinking}</Text>
+            ) : (
+              <Text wrap="wrap">
+                {judge.winner === undefined ? '' : `${w.lane(judge.winner)} · ${w.recommended}: `}
+                {judge.reason ?? ''}
+              </Text>
+            )}
+          </Box>
+        )}
+        {outcome !== undefined && (
+          <Text color={outcome.isMerged ? 'success' : 'error'} wrap="wrap">
+            {outcome.message}
+          </Text>
+        )}
+        {isOver &&
+          !isMerged &&
+          judge !== undefined &&
+          judge.status !== 'thinking' &&
+          keepable.map(l => (
+            <Button
+              key={`keep-${l.index}`}
+              label={w.choose(l.index)}
+              variant={judge.winner === l.index ? 'primary' : undefined}
+              onPress={() => void keepLane($, w, l.index)}
+            />
+          ))}
+        {isOver && !isMerged && <Button key="discard" label={w.discard} onPress={() => void discardBout($, w.discarded)} />}
+        {isMerged && <Button key="close" label={w.close} onPress={() => void closeBout($)} />}
       </Box>
     )
   })
