@@ -1,0 +1,29 @@
+{
+  "name": "agent-crew",
+  "version": "0.1.0",
+  "description": "A side pane that shows the main agent and every subagent as little animated pixel critters dressed for their role, with status, current activity, model, effort, tokens and an estimated dollar cost.",
+  "author": { "name": "Andrea Logoteta" },
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "language": {
+      "type": "string",
+      "title": "Language",
+      "description": "Language of the pane's labels.",
+      "default": "en",
+      "options": ["en", "it"]
+    },
+    "costumes": {
+      "type": "string",
+      "title": "Costume rules",
+      "description": "Extra rules that pick a costume from words in an agent's description, checked before the built-in ones. Comma separated keyword=costume pairs, e.g. 'wiki=writer, thesis=scientist'. Costumes: captain, explorer, architect, painter, builder, reviewer, writer, scientist, helper.",
+      "default": ""
+    },
+    "autoOpen": {
+      "type": "boolean",
+      "title": "Open on start",
+      "description": "Open the crew pane when a session starts. The /crew command opens it at any time.",
+      "default": true
+    }
+  }
+}
