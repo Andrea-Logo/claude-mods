@@ -23,6 +23,8 @@ export type Lane = {
   endedAt?: number
   /** The last line of `git diff --stat` once the lane's work is committed. */
   summary?: string
+  /** The start of what the lane's agent answered when it finished. */
+  answer?: string
   /** True once the lane's work is committed and its summary read. */
   isSettled?: boolean
   /** True once the agent list shows the lane's agent ended or gone. */
