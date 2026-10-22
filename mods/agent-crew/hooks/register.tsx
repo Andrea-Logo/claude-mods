@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { CrewMember, CrewStatus, CrewTotals, Tokens } from '../types'
+import type { CrewMember, CrewStatus, CrewTotals, RouterRoute, Tokens } from '../types'
 import { costumeOf, parseRules } from './costumes'
 import { costOf, modelName } from './pricing'
 import { SIZE, spriteCells, spriteSvg } from './sprites'
@@ -19,7 +19,10 @@ const crew = atom({ plugin: 'agent-crew', key: 'crew' } as const, {})
 const archived = atom({ plugin: 'agent-crew', key: 'archived' } as const, {
   tokens: NO_TOKENS,
   usd: 0,
+  saved: 0,
 })
+/** The model-router mod's routes, read when that mod is installed. */
+const routerRoutes = { plugin: 'model-router', key: 'routes' } as const
 const tick = atom({ plugin: 'agent-crew', key: 'tick' } as const, 0)
 const sessionUsd = atom({ plugin: 'agent-crew', key: 'sessionUsd' } as const, null)
 
@@ -67,6 +70,13 @@ function addTokens(a: Tokens, b: Tokens): Tokens {
     cacheRead: a.cacheRead + b.cacheRead,
     cacheWrite: a.cacheWrite + b.cacheWrite,
   }
+}
+
+/** Dollars the router saved on a member: its tokens at the parent's prices, less what they cost. */
+function savedOf(m: CrewMember, route: RouterRoute | undefined): number {
+  if (route === undefined) return 0
+  if (modelName(route.fromModel) === modelName(m.model ?? route.toModel)) return 0
+  return Math.max(0, costOf(route.fromModel, m.tokens) - m.usd)
 }
 
 function moodOf(m: CrewMember): Mood {
@@ -201,9 +211,14 @@ async function clearFinished($: EngineInterface): Promise<void> {
   const all = await read($, crew)
   const gone = Object.values(all).filter(m => m.id !== MAIN && ENDED.includes(m.status))
   if (gone.length === 0) return
+  const routes = (await read($, routerRoutes)) ?? {}
   await update($, archived, a =>
     gone.reduce<CrewTotals>(
-      (sum, m) => ({ tokens: addTokens(sum.tokens, m.tokens), usd: sum.usd + m.usd }),
+      (sum, m) => ({
+        tokens: addTokens(sum.tokens, m.tokens),
+        usd: sum.usd + m.usd,
+        saved: (sum.saved ?? 0) + savedOf(m, routes[m.id]),
+      }),
       a,
     ),
   )
@@ -325,6 +340,7 @@ export const register: Register = (on, options) => {
     const old = await read($, archived)
     const realUsd = await read($, sessionUsd)
     const frame = await read($, tick)
+    const routes = (await read($, routerRoutes)) ?? {}
     const now = await $.clock.now()
     const rows = ordered(all)
     const columns = e.props.bodyColumns ?? e.viewport?.columns ?? 40
@@ -332,6 +348,14 @@ export const register: Register = (on, options) => {
     const working = rows.filter(([m]) => m.status === 'running' || m.status === 'waiting').length
     const usd = rows.reduce((sum, [m]) => sum + m.usd, old.usd)
     const hasEnded = rows.some(([m]) => m.id !== MAIN && ENDED.includes(m.status))
+    const saved = rows.reduce((sum, [m]) => sum + savedOf(m, routes[m.id]), old.saved ?? 0)
+    const totals = [
+      `≈ ${dollars(usd)} ${w.estimate}`,
+      saved > 0 ? `${w.saved} ≈ ${dollars(saved)}` : undefined,
+      realUsd === null ? undefined : `${dollars(realUsd)} ${w.session}`,
+    ]
+      .filter(Boolean)
+      .join(' · ')
 
     const statusColor = (s: CrewStatus) =>
       s === 'running'
@@ -347,14 +371,23 @@ export const register: Register = (on, options) => {
       const costume = costumeOf(m, rules)
       const total = m.tokens.input + m.tokens.output + m.tokens.cacheRead + m.tokens.cacheWrite
       const runFor = (m.endedAt ?? now) - m.startedAt
+      const route = routes[m.id]
+      // The router lowers effort below where the crew may hear it, so its word wins.
+      const effort = route?.effort ?? m.effort
       const facts = [
         m.model === undefined ? undefined : modelName(m.model),
-        m.effort === undefined ? undefined : (w.effort[m.effort] ?? m.effort),
+        effort === undefined ? undefined : (w.effort[effort] ?? effort),
         elapsed(runFor),
         w.steps(m.steps),
         w.tools(m.tools),
       ].filter(Boolean)
-      return { costume, total, facts, isEnded }
+      const savedHere = savedOf(m, route)
+      const routing =
+        route === undefined
+          ? undefined
+          : `${w.routed}: ${w.tier[route.tier]} → ${modelName(route.toModel)} (${w.by[route.by]})` +
+            (savedHere > 0 ? ` · ${w.saved} ≈ ${dollars(savedHere)}` : '')
+      return { costume, total, facts, isEnded, routing }
     }
 
     if (e.surface === 'terminal') {
@@ -365,10 +398,7 @@ export const register: Register = (on, options) => {
             <Text bold>
               {w.title} · {w.working(working)}
             </Text>
-            <Text dimColor>
-              ≈ {dollars(usd)} {w.estimate}
-              {realUsd === null ? '' : ` · ${dollars(realUsd)} ${w.session}`}
-            </Text>
+            <Text dimColor>{totals}</Text>
           </Box>
           {rows.length === 0 && <Text dimColor>{w.empty}</Text>}
           {rows.map(([m, depth]) => {
@@ -398,6 +428,11 @@ export const register: Register = (on, options) => {
                     {count(m.tokens.output)} · {w.cache} {count(m.tokens.cacheRead + m.tokens.cacheWrite)}) ≈{' '}
                     {dollars(m.usd)}
                   </Text>
+                  {c.routing !== undefined && (
+                    <Text color="success" wrap="truncate-end">
+                      {c.routing}
+                    </Text>
+                  )}
                 </Box>
               </Box>
             )
@@ -417,8 +452,7 @@ export const register: Register = (on, options) => {
             {w.title} · {w.working(working)}
           </Text>
           <Text dimColor size="footnote">
-            ≈ {dollars(usd)} {w.estimate}
-            {realUsd === null ? '' : ` · ${dollars(realUsd)} ${w.session}`}
+            {totals}
           </Text>
         </Box>
         {rows.length === 0 && <Text dimColor>{w.empty}</Text>}
@@ -449,6 +483,11 @@ export const register: Register = (on, options) => {
                   {count(c.total)} {w.tokens} (in {count(m.tokens.input)} · out {count(m.tokens.output)} ·{' '}
                   {w.cache} {count(m.tokens.cacheRead + m.tokens.cacheWrite)}) ≈ {dollars(m.usd)}
                 </Text>
+                {c.routing !== undefined && (
+                  <Text color="success" size="caption" wrap="truncate-end">
+                    {c.routing}
+                  </Text>
+                )}
               </Box>
             </Box>
           )

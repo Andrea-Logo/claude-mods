@@ -1,0 +1,42 @@
+{
+  "name": "model-router",
+  "version": "0.1.0",
+  "description": "Picks a cheaper model and effort for each subagent from how hard its task is (Haiku for a typo, Sonnet for everyday work, Opus for the hard parts), never above what it would have used, and suggests a cheaper model for simple prompts.",
+  "author": { "name": "Andrea Logoteta" },
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "language": {
+      "type": "string",
+      "title": "Language",
+      "description": "Language of the suggestions the router shows.",
+      "default": "en",
+      "options": ["en", "it"]
+    },
+    "mode": {
+      "type": "string",
+      "title": "Mode",
+      "description": "How hard to save. careful: Sonnet at high effort for everyday tasks. balanced: Sonnet at medium effort as the base, Opus only for clearly hard tasks. aggressive: Haiku whenever it can, Sonnet for hard tasks.",
+      "default": "balanced",
+      "options": ["careful", "balanced", "aggressive"]
+    },
+    "rules": {
+      "type": "string",
+      "title": "Tier rules",
+      "description": "Your own rules, checked first: comma separated keyword=tier pairs matched against a subagent's task, e.g. 'thesis=hard, typo=easy'. Tiers: easy, normal, hard.",
+      "default": ""
+    },
+    "askHaiku": {
+      "type": "boolean",
+      "title": "Ask Haiku when unsure",
+      "description": "When the task's words do not settle its tier, ask Haiku to judge it (a fraction of a cent per subagent). Off: an unclear task is treated as normal.",
+      "default": true
+    },
+    "suggestMain": {
+      "type": "boolean",
+      "title": "Suggest a cheaper model for simple prompts",
+      "description": "Show a toast when a short, simple prompt goes to an expensive main model. The main conversation's model is never changed for you.",
+      "default": true
+    }
+  }
+}

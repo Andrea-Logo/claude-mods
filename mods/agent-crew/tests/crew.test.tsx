@@ -102,3 +102,39 @@ test('finished agents grey out and can be cleared', async ($, on) => {
   expect(await ui.find({ type: 'Text', text: /Find the config files/ })).toBeUndefined()
   await ui.unmount()
 })
+
+test('a routed agent shows its tier and what the router saved', { options: { language: 'it' } }, async ($, on) => {
+  const clock = mock.clock(on, { now: 1000 })
+  engine(on)
+  agentStatus = 'running'
+  on('state.get', (_, e, next) =>
+    e.plugin === 'model-router'
+      ? {
+          value: {
+            value: {
+              a1: { tier: 'easy', by: 'keywords', fromModel: 'claude-opus-5-5', toModel: 'claude-sonnet-5-5', effort: 'low' },
+            },
+            version: 1,
+          },
+        }
+      : next(e),
+  )
+
+  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
+  await $.agent.spawn({ ...SPAWN, prompt: 'Fix it', description: 'Design the landing page', subagentType: 'general-purpose' })
+  const stream = $.turn.step({ turnId: 't1', index: 0, model: 'claude-sonnet-5-5', effort: 'high', messageCount: 1, agentId: 'a1' })
+  for await (const _ of stream) {
+    // drain
+  }
+  await clock.advance(1000)
+
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ ...PANE, surface })
+    // The router's effort wins over the one the crew heard.
+    expect(await ui.find({ type: 'Text', text: /Sonnet 5\.5 · basso/ })).toBeDefined()
+    // Same tokens at Opus 5.5 prices: 1000 x $4 + 500 x $20 + 2000 x $0.20 = $0.0144; less $0.0074.
+    expect(await ui.find({ type: 'Text', text: /smistato: facile → Sonnet 5\.5 \(parole chiave\) · risparmiati ≈ \$0\.007/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /risparmiati ≈ \$0\.007 · \$0\.500 sessione/ })).toBeDefined()
+    await ui.unmount()
+  }
+})

@@ -1,6 +1,6 @@
 {
   "name": "agent-crew",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A side pane that shows the main agent and every subagent as little animated pixel critters dressed for their role, with status, current activity, model, effort, tokens and an estimated dollar cost.",
   "author": { "name": "Andrea Logoteta" },
   "license": "MIT",

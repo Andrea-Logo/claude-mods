@@ -37,7 +37,19 @@ export type CrewMember = {
   usd: number
 }
 
-export type CrewTotals = { tokens: Tokens; usd: number }
+export type CrewTotals = { tokens: Tokens; usd: number; saved: number }
+
+/**
+ * The model-router mod's decision for a subagent, as that mod's contract
+ * declares it. The crew only reads it; without the router it is absent.
+ */
+export type RouterRoute = {
+  tier: 'easy' | 'normal' | 'hard'
+  by: 'rule' | 'type' | 'keywords' | 'haiku' | 'default'
+  fromModel: string
+  toModel: string
+  effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+}
 
 declare module 'claude-code' {
   interface PluginState {
@@ -46,6 +58,9 @@ declare module 'claude-code' {
       archived: CrewTotals
       tick: number
       sessionUsd: number | null
+    }
+    'model-router': {
+      routes: Record<string, RouterRoute>
     }
   }
 }

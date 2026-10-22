@@ -9,6 +9,7 @@ This repository is a Claude Code plugin marketplace. Each mod lives in its own f
 | Mod | What it does |
 | --- | --- |
 | [agent-crew](mods/agent-crew) | A side pane that shows the main agent and every subagent as little animated pixel critters dressed for their role (painter, explorer, builder, ...), with status, activity, model, effort, tokens and estimated cost. |
+| [model-router](mods/model-router) | Starts each subagent on the cheapest model and effort that fits its task (Haiku for a typo, Sonnet for everyday work, Opus for the hard parts), never above what it would have used; suggests a cheaper model for simple prompts. Shows its savings in agent-crew. |
 
 ## Install
 
