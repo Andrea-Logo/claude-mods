@@ -230,7 +230,7 @@ async function clearFinished($: EngineInterface): Promise<void> {
 }
 
 export const register: Register = (on, options) => {
-  const lang: Lang = options.language === 'it' ? 'it' : 'en'
+  const lang: Lang = String(options.language).trim().toLowerCase() === 'it' ? 'it' : 'en'
   const w = words(lang)
   const rules = parseRules(typeof options.costumes === 'string' ? options.costumes : '')
   const autoOpen = options.autoOpen !== false
