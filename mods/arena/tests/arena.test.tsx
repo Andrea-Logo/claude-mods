@@ -19,11 +19,11 @@ const PANE = {
   },
 } as const
 
-type World = { git: string[][]; spawned: { cwd?: string; prompt: string }[] }
+type World = { git: string[][]; spawned: { cwd?: string; prompt: string }[]; stopped: string[] }
 
 /** Stands in for the engine and for git in a repository at /repo. */
 function engine(on: On, isRepo = true, isDirty = false): World {
-  const world: World = { git: [], spawned: [] }
+  const world: World = { git: [], spawned: [], stopped: [] }
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('command.register', () => ({ value: { command: 'arena' } }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
@@ -62,6 +62,10 @@ function engine(on: On, isRepo = true, isDirty = false): World {
   })
   on('turn.complete', (_, e) => ({ text: e.answer }))
   on('prompt.submit', (_, e) => ({ text: e.text }))
+  on('tool.call', { tool: 'TaskStop' }, (_, e) => {
+    world.stopped.push(String(e.task_id))
+    return { result: {} }
+  })
   on('model.complete', () => ({
     value: {
       isAnswered: true,
@@ -149,6 +153,8 @@ test('the judge recommends a variant and keeping it merges it and cleans up', { 
   expect(await ui.find({ key: 'keep-1' })).toBeDefined()
   await ui.press({ key: 'keep-2' })
 
+  // Each lane's agent is stopped once its work is in, so the session goes idle.
+  expect(world.stopped.sort()).toEqual(['a1', 'a2'])
   const merge = world.git.find(a => a.includes('merge') && !a.includes('--abort'))
   expect(merge).toContain('arena/3uw-2')
   expect(world.git.filter(a => a[1] === 'worktree' && a[2] === 'remove').length).toBe(2)

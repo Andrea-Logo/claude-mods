@@ -1,6 +1,6 @@
 # arena
 
-> **Preview (0.3.0).** Tested with automated tests, on a scratch repository and in a local session; feedback welcome.
+> **Preview (0.3.1).** Tested with automated tests, on a scratch repository and in a local session; feedback welcome.
 
 Two Claude variants take on the same task at the same time, each in its own git worktree. A pane follows them side by side, live. When both are done, a cheap judge model compares the two changes and recommends one; you keep it with one click, and arena merges it into your branch and cleans up the rest.
 
@@ -47,6 +47,7 @@ echo '{"language":"it"}' | claude plugin configure arena@claude-mods --values-st
 - In a cloud session the pane may not be drawn, depending on the app you watch it in. Arena still runs, and its reply says when the pane could not be shown.
 - One bout at a time.
 - A variant's completion notice is kept out of the main conversation, since its result is already in the pane. Without that, the main Claude would spend a turn reading what the pane shows.
+- Each variant's agent is stopped once its work is committed. A named background agent otherwise stays alive, idle and waiting for a message, and the session keeps showing as busy.
 
 ## Install
 
